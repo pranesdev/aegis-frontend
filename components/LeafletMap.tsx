@@ -1148,15 +1148,30 @@ export default function LeafletMap({
       .then((rows: Array<{ boatId?: string; lat?: number; lon?: number; zone?: string; distance?: number; timestamp?: string }>) => {
         if (!Array.isArray(rows) || rows.length === 0) return
         for (const row of rows) {
-          if (row.lat === undefined || row.lon === undefined) continue
+          const lat = Number(row.lat)
+          const lon = Number(row.lon)
+          
+          // Validate coordinates
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            console.warn("Invalid coordinates from REST API", { lat, lon, boatId: row.boatId })
+            continue
+          }
+          
+          // Validate lat/lon ranges
+          if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            console.warn("Coordinates out of valid range from REST API", { lat, lon, boatId: row.boatId })
+            continue
+          }
+          
           const boat: BoatMarkerData = {
             boatId: row.boatId || "BOAT1",
-            lat: Number(row.lat),
-            lon: Number(row.lon),
+            lat,
+            lon,
             zone: normalizeZone(row.zone),
             distance: row.distance,
             timestamp: row.timestamp,
           }
+          console.log("Initial boat loaded:", boat)
           upsertBoat(boat, { shouldPan: false })
         }
         setIsTracking(true)
@@ -1181,6 +1196,19 @@ export default function LeafletMap({
       if (demoMode) return
       const lat = Number(data.lat)
       const lng = Number(data.lon)
+      
+      // Validate coordinates
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn("Invalid coordinates from ESP32", { lat, lng, rawData: data })
+        return
+      }
+      
+      // Validate lat/lon ranges
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        console.warn("Coordinates out of valid range", { lat, lng })
+        return
+      }
+      
       const boat: BoatMarkerData = {
         boatId: data.boatId || "BOAT1",
         lat,
@@ -1189,6 +1217,7 @@ export default function LeafletMap({
         distance: data.distance,
         timestamp: data.timestamp,
       }
+      console.log("Location update received:", boat)
       upsertBoat(boat, {
         shouldPan: true,
         directSpeed: typeof data.speed === "number" ? Number(data.speed) : undefined,
